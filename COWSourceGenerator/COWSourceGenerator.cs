@@ -665,8 +665,14 @@ public class IncrementalGenerator: IIncrementalGenerator {
     static StringBuilder GenerateTypescript( COWClassConfig cls ) {
         StringBuilder sb = new();
 
+        var dataProperties = cls.RelevantProperties.Where( _ => !_.IsTenantKey && !_.IsGeneratedKey && !_.IsVirtual && !_.IsIgnored );
+
+        var updatableProperties = dataProperties.Where( _ => _.SetterAccessibility == Accessibility.Internal );
+        var readonlyProperties = dataProperties.Where( _ => _.SetterAccessibility != Accessibility.Internal );
+        var associationProperties = cls.RelevantProperties.Where( _ => _.IsVirtual && !_.IsTenantKey && !_.IsIgnored );
+
         HashSet<string> imports = new() { cls.Name };
-        foreach ( var p in cls.RelevantProperties.Where( _ => _.IsVirtual || _.IsEnum ) ) {
+        foreach ( var p in associationProperties ) {
             if ( !imports.Contains( p.TypeWithoutNullable ) ) {
                 string path = p.IsEnum ? ".." : ".";
                 sb.AppendLine( $$"""import type { {{p.TypeWithoutNullable}} } from '{{path}}/{{p.TypeWithoutNullable}}.d.ts'""" );
@@ -691,11 +697,6 @@ public class IncrementalGenerator: IIncrementalGenerator {
                 _ when p.TypeWithoutNullable.StartsWith( "Id<" ) => $"0 as {p.TypeWithoutNullable}",
                 _ => "''"
             };
-
-        var dataProperties = cls.RelevantProperties.Where( _ => !_.IsTenantKey && !_.IsGeneratedKey && !_.IsVirtual && !_.IsIgnored );
-
-        var updatableProperties = dataProperties.Where( _ => _.SetterAccessibility == Accessibility.Internal );
-        var readonlyProperties = dataProperties.Where( _ => _.SetterAccessibility != Accessibility.Internal );
 
         sb.AppendLine( $$"""
 
@@ -727,7 +728,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
                 // Associations
             """ );
 
-        foreach ( var p in cls.RelevantProperties.Where( _ => _.IsVirtual && !_.IsTenantKey && !_.IsIgnored ) ) {
+        foreach ( var p in associationProperties ) {
             sb.AppendLine( $"   readonly {p.Name}?: {p.TypeWithoutNullable}" );
         }
 
@@ -783,7 +784,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
             {{String.Join( "", cls.RelevantProperties.Where( _ => _.IsGeneratedKey ).Select( p => GetPropTypeInfo( p, false, false, false ) ) )}}
             {{String.Join( "", readonlyProperties.Select( p => GetPropTypeInfo( p, true, false, false ) ) )}}
             {{String.Join( "", updatableProperties.Select( p => GetPropTypeInfo( p, true, true, false ) ) )}}
-            {{String.Join( "", cls.RelevantProperties.Where( _ => _.IsVirtual && !_.IsTenantKey && !_.IsIgnored ).Select( p => GetPropTypeInfo( p, false, false, true ) ) )}}
+            {{String.Join( "", associationProperties.Select( p => GetPropTypeInfo( p, false, false, true ) ) )}}
                 }
            }
            """ );
