@@ -665,11 +665,20 @@ public class IncrementalGenerator: IIncrementalGenerator {
     static StringBuilder GenerateTypescript( COWClassConfig cls ) {
         StringBuilder sb = new();
 
-        var dataProperties = cls.RelevantProperties.Where( _ => !_.IsTenantKey && !_.IsGeneratedKey && !_.IsVirtual && !_.IsIgnored );
-
-        var updatableProperties = dataProperties.Where( _ => _.SetterAccessibility == Accessibility.Internal );
-        var readonlyProperties = dataProperties.Where( _ => _.SetterAccessibility != Accessibility.Internal );
         var associationProperties = cls.RelevantProperties.Where( _ => _.IsVirtual && !_.IsTenantKey && !_.IsIgnored );
+        var assocWithIdPropPairs = cls.GetAssocWithIdPropPairs( associationProperties );
+
+        var assocIdInnerTypes = assocWithIdPropPairs.ToDictionary( _ => _.IdProp.Name );
+
+        //foreach(var kv in assocIdInnerTypes) {
+        //    sb.AppendLine($"// {kv.Key}: {kv.Value}");
+        //}
+
+        var dataProperties = cls.RelevantProperties.Where( _ => !_.IsTenantKey && !_.IsGeneratedKey && !_.IsVirtual && !_.IsIgnored )
+                .GroupBy( _ => _.SetterAccessibility == Accessibility.Internal || (_.SetterAccessibility == Accessibility.Protected && assocIdInnerTypes.ContainsKey( _.Name )) );
+
+        var updatableProperties = dataProperties.FirstOrDefault( g => g.Key )?.ToList() ?? [];
+        var readonlyProperties = dataProperties.FirstOrDefault( g => !g.Key )?.ToList() ?? [];
 
         HashSet<string> imports = new() { cls.Name };
         foreach ( var p in associationProperties ) {
@@ -749,12 +758,6 @@ public class IncrementalGenerator: IIncrementalGenerator {
             {{String.Join( ",\n", readonlyProperties.Select( p => $"   {p.Name}: {TsDefaultValue( p )}" ) )}}
             }
             """ );
-
-
-        var assocProps = cls.GetAssocProps();
-        var assocWithIdPropPairs = cls.GetAssocWithIdPropPairs( assocProps ).Where( _ => (_.IsProtected || !_.IdProp.TypeIsNullable) && !_.IdProp.IsTenantKey );
-
-        var assocIdInnerTypes = assocWithIdPropPairs.ToDictionary( _ => _.IdProp.Name );
 
         string GetPropTypeInfo( Property p, bool isInsertable, bool isUpdatable, bool isAssociation ) =>
             $$"""   
