@@ -694,6 +694,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
                 "INT" or "UINT" or "FLOAT" or "DOUBLE" or "LONG" or "ULONG" => "number",
                 "INSTANT" or "DATETIME" or "DATETIMEOFFSET" => "Date",
                 "BOOL" => "boolean",
+                "STRING" or "TIMEONLY" => "string",
                 _ => t
             };
 
@@ -703,6 +704,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
                 "INT" or "UINT" or "FLOAT" or "DOUBLE" or "LONG" or "ULONG" => "0",
                 "INSTANT" or "DATETIME" or "DATETIMEOFFSET" => "new Date()",
                 "BOOL" => "false",
+                "TIMEONLY" => "'08:00'",
                 _ when p.TypeWithoutNullable.StartsWith( "Id<" ) => $"0 as {p.TypeWithoutNullable}",
                 _ => "''"
             };
