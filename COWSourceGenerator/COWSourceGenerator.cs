@@ -566,7 +566,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
                     // Copy mutable properties
             """ );
 
-        foreach (var prop in cls.RelevantProperties.Where( _ => !_.IsGeneratedKey && !_.IsPrimaryKey && !_.IsVirtual && _.SetterAccessibility != Accessibility.Private && !assocIdPropNames.Contains(_.Name) ) ) {
+        foreach ( var prop in cls.RelevantProperties.Where( _ => !_.IsGeneratedKey && !_.IsPrimaryKey && !_.IsVirtual && _.SetterAccessibility == Accessibility.Internal && !assocIdPropNames.Contains(_.Name) ) ) {
             sb.AppendLine($$"""
                         changeTracker = changeTracker.Set{{prop.Name}}( src.{{prop.Name}} );
                 """ );
@@ -661,6 +661,13 @@ public class IncrementalGenerator: IIncrementalGenerator {
         return sb;
     }
 
+    enum PropTsCategory { Updatable, Insertable, ReadOnly }
+
+    static PropTsCategory GetPropTsCategory( Property p, IReadOnlyDictionary<string, (Property AssocProp, Property IdProp, bool IsProtected)> assocIdInnerTypes ) =>
+        p.SetterAccessibility == Accessibility.Internal || (p.SetterAccessibility == Accessibility.Protected && assocIdInnerTypes.ContainsKey( p.Name )) ? PropTsCategory.Updatable :
+        p.SetterAccessibility == Accessibility.Private || p.SetterAccessibility == Accessibility.Protected ? PropTsCategory.Insertable :
+        PropTsCategory.ReadOnly
+        ;
 
     static StringBuilder GenerateTypescript( COWClassConfig cls ) {
         StringBuilder sb = new();
@@ -675,10 +682,11 @@ public class IncrementalGenerator: IIncrementalGenerator {
         //}
 
         var dataProperties = cls.RelevantProperties.Where( _ => !_.IsTenantKey && !_.IsGeneratedKey && !_.IsVirtual && !_.IsIgnored )
-                .GroupBy( _ => _.SetterAccessibility == Accessibility.Internal || (_.SetterAccessibility == Accessibility.Protected && assocIdInnerTypes.ContainsKey( _.Name )) );
+                .GroupBy( _ => GetPropTsCategory(_, assocIdInnerTypes));
 
-        var updatableProperties = dataProperties.FirstOrDefault( g => g.Key )?.ToList() ?? [];
-        var readonlyProperties = dataProperties.FirstOrDefault( g => !g.Key )?.ToList() ?? [];
+        var updatableProperties = dataProperties.FirstOrDefault( g => g.Key == PropTsCategory.Updatable )?.ToList() ?? [];
+        var insertableProperties = dataProperties.FirstOrDefault( g => g.Key == PropTsCategory.Insertable )?.ToList() ?? [];
+        var readonlyProperties = dataProperties.FirstOrDefault( g => g.Key == PropTsCategory.ReadOnly )?.ToList() ?? [];
 
         HashSet<string> imports = new() { cls.Name };
         foreach ( var p in associationProperties ) {
@@ -721,7 +729,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
             export interface {{cls.Name}}Properties extends {{cls.Name}}UpdatableProperties {
             """ );
-        foreach ( var p in readonlyProperties ) {
+        foreach ( var p in insertableProperties ) {
             sb.AppendLine( $"   readonly {p.Name}: {TsType( p.TypeWithoutNullable )}{(p.TypeIsNullable ? " | null" : "")};" );
         }
         sb.AppendLine( $$"""
@@ -732,6 +740,10 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
         foreach ( var p in cls.RelevantProperties.Where( _ => _.IsGeneratedKey ) ) {
             sb.AppendLine( $"   readonly {p.Name}: {TsType( p.TypeWithoutNullable )};" );
+        }
+
+        foreach ( var p in readonlyProperties ) {
+            sb.AppendLine( $"   readonly {p.Name}: {TsType( p.TypeWithoutNullable )}{(p.TypeIsNullable ? " | null" : "")};" );
         }
 
         sb.AppendLine( $$"""
@@ -757,7 +769,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
             const defaultProperties: {{cls.Name}}Properties = {
                 ...defaultUpdatableProperties,
-            {{String.Join( ",\n", readonlyProperties.Select( p => $"   {p.Name}: {TsDefaultValue( p )}" ) )}}
+            {{String.Join( ",\n", insertableProperties.Select( p => $"   {p.Name}: {TsDefaultValue( p )}" ) )}}
             }
             """ );
 
@@ -787,7 +799,8 @@ public class IncrementalGenerator: IIncrementalGenerator {
                 DefaultUpdatable: defaultUpdatableProperties,
                 Properties: {
             {{String.Join( "", cls.RelevantProperties.Where( _ => _.IsGeneratedKey ).Select( p => GetPropTypeInfo( p, false, false, false ) ) )}}
-            {{String.Join( "", readonlyProperties.Select( p => GetPropTypeInfo( p, true, false, false ) ) )}}
+            {{String.Join( "", readonlyProperties.Select( p => GetPropTypeInfo( p, false, false, false ) ) )}}
+            {{String.Join( "", insertableProperties.Select( p => GetPropTypeInfo( p, true, false, false ) ) )}}
             {{String.Join( "", updatableProperties.Select( p => GetPropTypeInfo( p, true, true, false ) ) )}}
             {{String.Join( "", associationProperties.Select( p => GetPropTypeInfo( p, false, false, true ) ) )}}
                 }
