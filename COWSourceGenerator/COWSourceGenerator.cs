@@ -778,6 +778,8 @@ public class IncrementalGenerator: IIncrementalGenerator {
                     {{p.Name}}: {
                         Name: "{{p.Name}}", 
                         Type: "{{TsType(p.TypeWithoutNullable)}}",
+                        PrimaryKeyOrder: {{p.PrimaryKeyOrder?.ToString() ?? "null"}},
+                        IsGeneratedKey: {{(p.IsGeneratedKey ? "true" : "false")}},
                         IsNullable: {{(p.TypeIsNullable ? "true" : "false")}},
                         IsUpdatable: {{(isUpdatable ? "true" : "false")}},
                         IsInsertable: {{(isInsertable ? "true" : "false")}},
