@@ -692,7 +692,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
         foreach ( var p in associationProperties ) {
             if ( !imports.Contains( p.TypeWithoutNullable ) ) {
                 string path = p.IsEnum ? ".." : ".";
-                sb.AppendLine( $$"""import type { {{p.TypeWithoutNullable}} } from '{{path}}/{{p.TypeWithoutNullable}}.d.ts'""" );
+                sb.AppendLine( $$"""import { {{p.TypeWithoutNullable}}, {{p.TypeWithoutNullable}}TypeInfo } from '{{path}}/{{p.TypeWithoutNullable}}.ts'""" );
                 imports.Add( p.TypeWithoutNullable );
             }
         }
@@ -735,7 +735,16 @@ public class IncrementalGenerator: IIncrementalGenerator {
         sb.AppendLine( $$"""
             }
 
-            export interface {{cls.Name}} extends {{cls.Name}}Properties {
+            export interface {{cls.Name}}Associations {
+            """ );
+        foreach ( var p in associationProperties ) {
+            sb.AppendLine( $"   readonly {p.Name}?: {p.TypeWithoutNullable}" );
+        }
+
+        sb.AppendLine( $$"""
+            }
+
+            export interface {{cls.Name}} extends {{cls.Name}}Properties, {{cls.Name}}Associations {
             """ );
 
         foreach ( var p in cls.RelevantProperties.Where( _ => _.IsGeneratedKey ) ) {
@@ -744,15 +753,6 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
         foreach ( var p in readonlyProperties ) {
             sb.AppendLine( $"   readonly {p.Name}: {TsType( p.TypeWithoutNullable )}{(p.TypeIsNullable ? " | null" : "")};" );
-        }
-
-        sb.AppendLine( $$"""
-
-                // Associations
-            """ );
-
-        foreach ( var p in associationProperties ) {
-            sb.AppendLine( $"   readonly {p.Name}?: {p.TypeWithoutNullable}" );
         }
 
         sb.AppendLine( $$"""
@@ -785,20 +785,30 @@ public class IncrementalGenerator: IIncrementalGenerator {
                         IsInsertable: {{(isInsertable ? "true" : "false")}},
                         IsAssociationId: {{(assocIdInnerTypes.ContainsKey( p.Name ) ? "true" : "false")}},
                         IsAssociation: {{(isAssociation ? "true" : "false")}},
-                        AssociationType: {{(assocIdInnerTypes.TryGetValue( p.Name, out var assocInfo ) ? $"\"{TsType(assocInfo.AssocProp.TypeWithoutNullable)}\"" : "undefined")}},
+                        AssociationType: {{(assocIdInnerTypes.TryGetValue( p.Name, out var assocInfo ) ? $"\"{TsType( assocInfo.AssocProp.TypeWithoutNullable )}\"" : "undefined")}},
+                        AssociationProp: {{(assocIdInnerTypes.TryGetValue( p.Name, out var _ ) ? $"\"{assocInfo.AssocProp.Name}\"" : "undefined")}},
                     },
 
             """;
 
         sb.AppendLine( $$"""
 
-           export const {{cls.Name}}TypeInfo: IEntityInfo<{{cls.Name}}, {{cls.Name}}Properties, {{cls.Name}}UpdatableProperties> = {
-                Name: "{{cls.Name}}",
-                EntityType: {} as {{cls.Name}},
-                PropertiesType: {} as {{cls.Name}}Properties,
-                UpdatablePropertiesType: {} as {{cls.Name}}UpdatableProperties,
-                Default: defaultProperties,
-                DefaultUpdatable: defaultUpdatableProperties,
+           export const {{cls.Name}}TypeInfo: IEntityInfo<{{cls.Name}}, {{cls.Name}}Properties, {{cls.Name}}UpdatableProperties, UserAssociations> = {
+               Name: "{{cls.Name}}",
+               EntityType: {} as {{cls.Name}},
+               PropertiesType: {} as {{cls.Name}}Properties,
+               UpdatablePropertiesType: {} as {{cls.Name}}UpdatableProperties,
+               Default: defaultProperties,
+               DefaultUpdatable: defaultUpdatableProperties,
+               AssociationTypes: {
+           """ );
+
+        foreach(var assocProp in associationProperties ) {
+            sb.AppendLine( $"        {assocProp.Name}: {assocProp.TypeWithoutNullable}TypeInfo," );
+        }
+
+        sb.AppendLine( $$"""
+                },
                 Properties: {
             {{String.Join( "", cls.RelevantProperties.Where( _ => _.IsGeneratedKey ).Select( p => GetPropTypeInfo( p, false, false, false ) ) )}}
             {{String.Join( "", readonlyProperties.Select( p => GetPropTypeInfo( p, false, false, false ) ) )}}
