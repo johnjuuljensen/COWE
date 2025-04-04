@@ -793,18 +793,18 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
         sb.AppendLine( $$"""
 
-           export const {{cls.Name}}TypeInfo: IEntityInfo<{{cls.Name}}, {{cls.Name}}Properties, {{cls.Name}}UpdatableProperties, UserAssociations> = {
+           export const {{cls.Name}}TypeInfo: IEntityInfo<{{cls.Name}}, {{cls.Name}}Properties, {{cls.Name}}UpdatableProperties, {{cls.Name}}Associations> = {
                Name: "{{cls.Name}}",
                EntityType: {} as {{cls.Name}},
                PropertiesType: {} as {{cls.Name}}Properties,
                UpdatablePropertiesType: {} as {{cls.Name}}UpdatableProperties,
                Default: defaultProperties,
                DefaultUpdatable: defaultUpdatableProperties,
-               AssociationTypes: {
+               AssociationTypeInfos: {
            """ );
 
         foreach(var assocProp in associationProperties ) {
-            sb.AppendLine( $"        {assocProp.Name}: {assocProp.TypeWithoutNullable}TypeInfo," );
+            sb.AppendLine( $"        {assocProp.Name}: () => {assocProp.TypeWithoutNullable}TypeInfo," );
         }
 
         sb.AppendLine( $$"""
