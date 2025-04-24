@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace COWEntities;
@@ -32,6 +33,6 @@ public class UpdateHandlerStore: HandlerStore<UpdateHandlerStore.IUpdateExecutor
         ? handler.RunAsync( updateContext )
         : Task.FromResult( mapNoHandler() );
 
-    //public static IEnumerable<(string EntityName, TResult Result)> Select<TResult>( IQueryContext<TResult> queryContext ) =>
-    //    ms_UpdateHandlers.OrderBy( kv => kv.Key ).Select( kv => (kv.Key, kv.Value.Run( queryContext )) );
+    public static IEnumerable<(string EntityName, TResult Result)> Select<TResult>( IUpdateContext<TResult> context ) =>
+        ms_handlers.OrderBy( kv => kv.Key ).Select( kv => (kv.Key, kv.Value.RunAsync( context ).Result) );
 }
