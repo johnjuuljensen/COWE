@@ -702,8 +702,8 @@ public class IncrementalGenerator: IIncrementalGenerator {
                 "INT" or "UINT" or "FLOAT" or "DOUBLE" or "LONG" or "ULONG" => "number",
                 "INSTANT" or "DATETIME" or "DATETIMEOFFSET" => "Date",
                 "BOOL" => "boolean",
-                "STRING" or "TIMEONLY" => "string",
-                _ => t
+                "STRING" or "TIMEONLY" or "TIMESPAN" => "string",
+                _ => $"{t}"
             };
 
         static string TsDefaultValue( Property p ) =>
@@ -712,7 +712,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
                 "INT" or "UINT" or "FLOAT" or "DOUBLE" or "LONG" or "ULONG" => "0",
                 "INSTANT" or "DATETIME" or "DATETIMEOFFSET" => "new Date()",
                 "BOOL" => "false",
-                "TIMEONLY" => "'08:00'",
+                "TIMEONLY" or "TIMESPAN" => "'08:00'",
                 _ when p.TypeWithoutNullable.StartsWith( "Id<" ) => $"0 as {p.TypeWithoutNullable}",
                 _ => "''"
             };
@@ -738,7 +738,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
             export interface {{cls.Name}}Associations {
             """ );
         foreach ( var p in associationProperties ) {
-            sb.AppendLine( $"   readonly {p.Name}?: {p.TypeWithoutNullable}" );
+            sb.AppendLine( $"   readonly {p.Name}?: {p.TypeWithoutNullable};" );
         }
 
         sb.AppendLine( $$"""
