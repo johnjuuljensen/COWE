@@ -452,25 +452,56 @@ public class IncrementalGenerator: IIncrementalGenerator {
     static (StringBuilder Args, StringBuilder Assignments) GenerateConstructor( COWClassConfig cls ) {
         var assocProps = cls.GetAssocProps();
 
-        var assocWithIdPropPairs = cls.GetAssocWithIdPropPairs( assocProps ).Where( _ => (_.IsProtected || !_.IdProp.TypeIsNullable) && !_.IdProp.IsTenantKey );
+        List<(Property AssocProp, Property IdProp, bool IsProtected)> otherAssocProps = new();
+        var assocWithIdPropPairs = cls.GetAssocWithIdPropPairs( assocProps ).Where( _ => !_.IdProp.IsTenantKey );
 
         var assocIdPropNames = assocWithIdPropPairs.Select( _ => _.IdProp.Name ).ToImmutableHashSet();
 
         (StringBuilder args, StringBuilder assignments) = (new(), new());
         foreach ( var pp in assocWithIdPropPairs ) {
-            args.AppendLine( $$"""
+            if ( (pp.IsProtected || !pp.IdProp.TypeIsNullable) ) {
+                args.AppendLine( $$"""
                         {{pp.AssocProp.TypeWithoutNullable}}{{(pp.IdProp.TypeIsNullable ? "?" : "")}} {{pp.AssocProp.Name}},
                 """ );
-            assignments.AppendLine( $$"""
+                assignments.AppendLine( $$"""
                         this.{{pp.IdProp.Name}} = {{pp.AssocProp.Name}}{{(pp.IdProp.TypeIsNullable ? "?" : "")}}.Id;
                         this.{{pp.AssocProp.Name}} = {{pp.AssocProp.Name}};
                 """ );
+            } else {
+                otherAssocProps.Add(pp);
+            }
         }
 
-        var privateProps = cls.RelevantProperties.Where( _ => !_.IsGeneratedKey && !_.IsTenantKey && !_.IsVirtual && (_.SetterAccessibility == Accessibility.Private || !_.TypeIsNullable) && !assocIdPropNames.Contains( _.Name ) );
+        List<Property> defaultProps = new();
+        var privateProps = cls.RelevantProperties.Where( _ => !_.IsGeneratedKey && !_.IsTenantKey && !_.IsVirtual && !assocIdPropNames.Contains( _.Name ) );
         foreach ( var prop in privateProps ) {
-            args.AppendLine( $$"""
+
+            if (prop.SetterAccessibility == Accessibility.Private || !prop.TypeIsNullable) {
+                args.AppendLine( $$"""
                         {{prop.TypeWithoutNullable}}{{(prop.TypeIsNullable ? "?" : "")}} {{prop.Name}},
+                """ );
+                assignments.AppendLine( $$"""
+                        this.{{prop.Name}} = {{prop.Name}};
+                """ );
+            } else {
+                defaultProps.Add( prop );
+            }
+        }
+
+        foreach ( var pp in otherAssocProps ) {
+            args.AppendLine( $$"""
+                    {{pp.AssocProp.TypeWithoutNullable}}{{(pp.IdProp.TypeIsNullable ? "?" : "")}} {{pp.AssocProp.Name}} = default!,
+            """ );
+            assignments.AppendLine( $$"""
+                    this.{{pp.IdProp.Name}} = {{pp.AssocProp.Name}}?.Id;
+                    this.{{pp.AssocProp.Name}} = {{pp.AssocProp.Name}};
+            """ );
+        }
+
+
+        foreach ( var prop in defaultProps ) {
+            args.AppendLine( $$"""
+                        {{prop.TypeWithoutNullable}}{{(prop.TypeIsNullable ? "?" : "")}} {{prop.Name}} = default!,
                 """ );
             assignments.AppendLine( $$"""
                         this.{{prop.Name}} = {{prop.Name}};
