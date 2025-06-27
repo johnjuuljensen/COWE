@@ -18,12 +18,15 @@ public class HandlerStore<TExecutor> {
 public class UpdateHandlerStore: HandlerStore<UpdateHandlerStore.IUpdateExecutor> {
     public interface IUpdateExecutor {
         Task<TResult> RunAsync<TResult>( IUpdateContext<TResult> updateContext );
+        Type EntityType { get; }
     }
 
     class UpdateExecutor<T>: IUpdateExecutor
         where T : class, IUpdatable<T> {
         public Task<TResult> RunAsync<TResult>( IUpdateContext<TResult> updateContext ) =>
             T.ExecuteUpdateAsync<TResult>( updateContext );
+
+        public Type EntityType => typeof( T );
     }
 
     public static bool RegisterUpdatable<T>( string? nameOverload = null ) where T : class, IUpdatable<T> =>
@@ -36,4 +39,7 @@ public class UpdateHandlerStore: HandlerStore<UpdateHandlerStore.IUpdateExecutor
 
     public static IEnumerable<(string EntityName, TResult Result)> Select<TResult>( IUpdateContext<TResult> context ) =>
         ms_handlers.OrderBy( kv => kv.Key ).Select( kv => (kv.Key, kv.Value.RunAsync( context ).Result) );
+
+    public static IEnumerable<KeyValuePair<string, IUpdateExecutor>> Handlers => ms_handlers;
+
 }
