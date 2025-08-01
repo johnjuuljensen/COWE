@@ -231,7 +231,8 @@ public class IncrementalGenerator: IIncrementalGenerator {
         var sb = new StringBuilder();
 
         bool isInsertable = cls.Interfaces.Contains($"IInsertable");
-        bool isUpdatable = cls.RelevantProperties.Any( _ => _.SetterAccessibility != Accessibility.Private );
+        bool hasPublicProps = cls.RelevantProperties.Any( _ => _.SetterAccessibility == Accessibility.Public );
+        bool isUpdatable = cls.RelevantProperties.Any( _ => _.SetterAccessibility != Accessibility.Private && _.SetterAccessibility != Accessibility.Public );
 
         var updatableImpl = isUpdatable ? GenerateIUpdatableImpl( cls ) : new();
 
@@ -256,7 +257,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
         namespace {{cls.ContainingNamespace}};
         public partial class {{cls.Name}}{{(isUpdatable ? $": {conf.UpdatableInterface}<{cls.Name}>" : "")}}
         {
-            private {{cls.Name}}() {}
+            {{(hasPublicProps ? "public" : "private")}} {{cls.Name}}() {}
 
         {{(isInsertable ? ctr : "")}}
 
@@ -403,7 +404,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
         foreach ( var prop in cls.RelevantProperties.Where(_ => !_.IsVirtual) ) {
             WritePropHelpers( extensionMethods, cls, prop, $"{prop.Name} property" );
 
-            if ( prop.SetterAccessibility != Accessibility.Private ) {
+            if ( prop.SetterAccessibility != Accessibility.Private && prop.SetterAccessibility != Accessibility.Public ) {
                 var accessibility = prop.SetterAccessibility.ToDisplayStringForExt();
 
                 extensionMethods.AppendLine( $$"""
