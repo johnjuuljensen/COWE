@@ -5,12 +5,12 @@ using System.Threading.Tasks;
 namespace COWEntities;
 
 [AttributeUsage( AttributeTargets.Class )]
-public sealed class COWEntityAttribute: Attribute {}
+public sealed class COWEntityAttribute: Attribute { }
 
 [AttributeUsage( AttributeTargets.Property )]
 public sealed class PrimaryKeyAttribute: Attribute {
     public PrimaryKeyAttribute() { }
-    public PrimaryKeyAttribute(int order) {
+    public PrimaryKeyAttribute( int order ) {
         Order = order;
     }
     public int? Order { get; }
@@ -42,7 +42,7 @@ public interface IHasPrimaryKey<T, TKey>: IHasPrimaryKeyFilter<T> {
     void SetPrimaryKeyUnsafe( TKey key );
 }
 
-public interface IUpdatable<T> where T: class {
+public interface IUpdatable<T> where T : class {
     // Note: Not public
     T CloneForUpdate();
 

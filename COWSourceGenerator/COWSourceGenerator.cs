@@ -1,5 +1,4 @@
 ﻿using System.Collections.Immutable;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
 using Microsoft.CodeAnalysis;
@@ -56,9 +55,9 @@ record GlobalConfig(
             UpdatableInterface: opt.GetStringOrDefault( OPTIONS_PREFIX, nameof( UpdatableInterface ) ) ?? "IUpdatable",
             UpdatableInterfaceCloneMethod: opt.GetStringOrDefault( OPTIONS_PREFIX, nameof( UpdatableInterfaceCloneMethod ) ) ?? "CloneForUpdate",
             UsingNamespaces: (opt.GetStringOrDefault( OPTIONS_PREFIX, nameof( UsingNamespaces ) )
-                ?.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries) ?? [])
-                .Select(_ => _.Trim())
-                .Where(_ => !string.IsNullOrWhiteSpace(_))
+                ?.Split( new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries ) ?? [])
+                .Select( _ => _.Trim() )
+                .Where( _ => !string.IsNullOrWhiteSpace( _ ) )
                 .ToImmutableArray(),
             ChangeTrackerType: opt.GetStringOrDefault( OPTIONS_PREFIX, nameof( ChangeTrackerType ) ) ?? "ChangeTracker",
             ChangeTrackerSetPropertyMethod: opt.GetStringOrDefault( OPTIONS_PREFIX, nameof( ChangeTrackerSetPropertyMethod ) ) ?? "SetProperty"
@@ -96,7 +95,7 @@ record COWClassConfig(
 
 static class COWClassConfigExt {
 
-    public static IEnumerable<Property> GetAssocIdProps(this COWClassConfig cls) =>
+    public static IEnumerable<Property> GetAssocIdProps( this COWClassConfig cls ) =>
         cls.RelevantProperties.Where( prop =>
             prop.Name.EndsWith( "Id" )
             && !prop.IsVirtual );
@@ -105,14 +104,14 @@ static class COWClassConfigExt {
         cls.RelevantProperties.Where( prop => prop.IsVirtual );
 
 
-    public static IEnumerable<(Property AssocProp, Property IdProp, bool IsProtected)> 
+    public static IEnumerable<(Property AssocProp, Property IdProp, bool IsProtected)>
         GetAssocWithIdPropPairs( this COWClassConfig cls, IEnumerable<Property> assocProps ) {
         //Accessibility[] assocAccessibilityFilter = [Accessibility.ProtectedOrInternal, Accessibility.Protected, Accessibility.Internal];
 
         //assocProps = assocProps.Where(_ => assocAccessibilityFilter.Contains(_.SetterAccessibility)).ToList();
         var assocIdProps = cls.GetAssocIdProps()
             //.Where(_ => _.SetterAccessibility == Accessibility.Protected )
-            .ToDictionary(_ => _.Name);
+            .ToDictionary( _ => _.Name );
 
         return assocProps.Select( _ =>
                 assocIdProps.TryGetValue( _.Name + "Id", out var idProp )
@@ -138,11 +137,11 @@ public class IncrementalGenerator: IIncrementalGenerator {
         && cls.Modifiers.Any( m => m.IsKind( SyntaxKind.PartialKeyword ) )
         && !cls.Modifiers.Any( m => m.IsKind( SyntaxKind.StaticKeyword ) );
 
-    static int? GetPrimaryKeyOrder(IPropertySymbol p) {
+    static int? GetPrimaryKeyOrder( IPropertySymbol p ) {
         var attr = p.GetAttributes().SingleOrDefault( a => a.AttributeClass?.Name == "PrimaryKeyAttribute" );
         if ( attr is null ) return null;
 
-        if (attr.ConstructorArguments.Length == 1) {
+        if ( attr.ConstructorArguments.Length == 1 ) {
             return (int)attr.ConstructorArguments[0].Value!;
         }
 
@@ -171,7 +170,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
                             return new Property(
                                 Name: p.Name,
                                 //Type: propType.ToDisplayString( SymbolDisplayFormat.MinimallyQualifiedFormat ),
-                                TypeWithoutNullable: propType.WithNullableAnnotation( NullableAnnotation.NotAnnotated ).ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                                TypeWithoutNullable: propType.WithNullableAnnotation( NullableAnnotation.NotAnnotated ).ToDisplayString( SymbolDisplayFormat.MinimallyQualifiedFormat ),
                                 TypeIsNullable: p.NullableAnnotation == NullableAnnotation.Annotated || isNullableValueType,
                                 IsVirtual: p.IsVirtual,
                                 IsEnum: propType.IsEnum() || propType.IsNullableEnumType(),
@@ -182,7 +181,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
                                 IsIgnored: p.GetAttributes().Any( a => a.AttributeClass?.Name == "JsonIgnoreAttribute" )
                             );
                         } )
-                        .OrderBy( _ => !_.IsTenantKey)
+                        .OrderBy( _ => !_.IsTenantKey )
                         .ToImmutableArray();
 
 
@@ -190,11 +189,11 @@ public class IncrementalGenerator: IIncrementalGenerator {
                         ContainingNamespace: clsSymbol.ContainingNamespace.Name,
                         Name: clsSymbol.Name,
                         RelevantProperties: mutableProps,
-                        Interfaces: clsSymbol.AllInterfaces.Select(_ => _.Name).ToImmutableArray(),
-                        TypescriptPath: 
+                        Interfaces: clsSymbol.AllInterfaces.Select( _ => _.Name ).ToImmutableArray(),
+                        TypescriptPath:
                             clsSymbol.Locations
                                 .Where( _ => _.IsInSource )
-                                .OrderByDescending(_ => (_.SourceTree?.FilePath?.Contains( ".g." ) ?? false) || (_.SourceTree?.FilePath?.Contains( ".generated." ) ?? false) )
+                                .OrderByDescending( _ => (_.SourceTree?.FilePath?.Contains( ".g." ) ?? false) || (_.SourceTree?.FilePath?.Contains( ".generated." ) ?? false) )
                                 .FirstOrDefault()
                                 ?.SourceTree?.FilePath is string sourceFilePath
                             ? Path.Combine( Path.GetDirectoryName( sourceFilePath ), "typescript", $"{clsSymbol.Name}.ts" )
@@ -230,7 +229,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
         var sb = new StringBuilder();
 
-        bool isInsertable = cls.Interfaces.Contains($"IInsertable");
+        bool isInsertable = cls.Interfaces.Contains( $"IInsertable" );
         bool hasPublicProps = cls.RelevantProperties.Any( _ => _.SetterAccessibility == Accessibility.Public );
         bool isUpdatable = cls.RelevantProperties.Any( _ => _.SetterAccessibility != Accessibility.Private && _.SetterAccessibility != Accessibility.Public );
 
@@ -336,8 +335,8 @@ public class IncrementalGenerator: IIncrementalGenerator {
         StringBuilder sb = new();
 
         if ( cls.GetTenantKeyProp() is Property tenantProp ) {
-            if (tenantProp.TypeIsNullable) {
-                
+            if ( tenantProp.TypeIsNullable ) {
+
                 sb.AppendLine( $$"""
                     void IHasOptionalTenantKey<{{tenantProp.TypeWithoutNullable}}{{(tenantProp.TypeIsNullable ? "?" : "")}}>.SetOptionalTenantKeyUnsafe( {{tenantProp.TypeWithoutNullable}}{{(tenantProp.TypeIsNullable ? "?" : "")}} tenantKey ) {
                         this.{{tenantProp.Name}} = tenantKey;
@@ -357,7 +356,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
     }
 
 
-    private static (StringBuilder, StringBuilder) GenerateForTest( COWClassConfig cls) {
+    private static (StringBuilder, StringBuilder) GenerateForTest( COWClassConfig cls ) {
         var forTestParams = new StringBuilder();
         var forTestAssignments = new StringBuilder();
 
@@ -374,7 +373,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
         return (forTestParams, forTestAssignments);
     }
 
-    static void WritePropHelpers(StringBuilder sb, COWClassConfig cls, Property prop, string description) {
+    static void WritePropHelpers( StringBuilder sb, COWClassConfig cls, Property prop, string description ) {
         sb.AppendLine( $$"""
             // {{description}}
             [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "set_{{prop.Name}}")]
@@ -387,7 +386,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
             public static readonly Expression<Func<{{cls.Name}}, object?>> {{prop.Name}}_ObjExpr = _ => _.{{prop.Name}};
         """ );
 
-        if (prop.IsVirtual) {
+        if ( prop.IsVirtual ) {
             sb.AppendLine( $$"""
                 public static readonly Expression<Func<{{cls.Name}}, {{prop.TypeWithoutNullable}}>> {{prop.Name}}_NotNullExpr = _ => _.{{prop.Name}}!;
             """ );
@@ -401,7 +400,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
     static StringBuilder GeneratePropExtensions( GlobalConfig conf, COWClassConfig cls ) {
         var extensionMethods = new StringBuilder();
-        foreach ( var prop in cls.RelevantProperties.Where(_ => !_.IsVirtual) ) {
+        foreach ( var prop in cls.RelevantProperties.Where( _ => !_.IsVirtual ) ) {
             WritePropHelpers( extensionMethods, cls, prop, $"{prop.Name} property" );
 
             if ( prop.SetterAccessibility != Accessibility.Private && prop.SetterAccessibility != Accessibility.Public ) {
@@ -422,12 +421,12 @@ public class IncrementalGenerator: IIncrementalGenerator {
     static StringBuilder GenerateAssocProps( GlobalConfig conf, COWClassConfig cls ) {
         var assocProps = cls.GetAssocProps();
 
-        var assocWithIdPropPairs = cls.GetAssocWithIdPropPairs(assocProps).ToDictionary(_ => _.AssocProp.Name);
+        var assocWithIdPropPairs = cls.GetAssocWithIdPropPairs( assocProps ).ToDictionary( _ => _.AssocProp.Name );
 
         StringBuilder builder = new();
 
         foreach ( var assocProp in assocProps ) {
-            if ( assocWithIdPropPairs.TryGetValue( assocProp.Name, out var x) ) {
+            if ( assocWithIdPropPairs.TryGetValue( assocProp.Name, out var x ) ) {
                 var idProp = x.IdProp;
                 WritePropHelpers( builder, cls, assocProp, $"{assocProp.Name} <--> {idProp.Name}" );
                 if ( assocProp.SetterAccessibility != Accessibility.Private ) {
@@ -469,7 +468,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
                         this.{{pp.AssocProp.Name}} = {{pp.AssocProp.Name}};
                 """ );
             } else {
-                otherAssocProps.Add(pp);
+                otherAssocProps.Add( pp );
             }
         }
 
@@ -477,7 +476,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
         var privateProps = cls.RelevantProperties.Where( _ => !_.IsGeneratedKey && !_.IsTenantKey && !_.IsVirtual && !assocIdPropNames.Contains( _.Name ) );
         foreach ( var prop in privateProps ) {
 
-            if (prop.SetterAccessibility == Accessibility.Private || !prop.TypeIsNullable) {
+            if ( prop.SetterAccessibility == Accessibility.Private || !prop.TypeIsNullable ) {
                 args.AppendLine( $$"""
                         {{prop.TypeWithoutNullable}}{{(prop.TypeIsNullable ? "?" : "")}} {{prop.Name}},
                 """ );
@@ -516,7 +515,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
     static (StringBuilder hasPrimary, StringBuilder ext) GenerateFilterExpr( COWClassConfig cls ) {
         (StringBuilder hasPrimary, StringBuilder ext) = (new(), new());
         var keys = cls.GetKeys().ToList();
-        if ( keys.Any()) {
+        if ( keys.Any() ) {
 
             string keyType;
             if ( keys.Count > 1 ) {
@@ -536,7 +535,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
                 foreach ( var p in keys ) {
                     ext.Append( $"{(p.PrimaryKeyOrder == 0 ? "" : "&&")} _.{p.Name} == key.{p.Name} " );
                 }
-            }else {
+            } else {
                 var p = keys[0];
                 ext.Append( $" _.{p.Name} == key" );
             }
@@ -589,7 +588,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
         sb.Append( $$"""
                 public static TChangeTracker CopyChangesFrom<TChangeTracker>(this TChangeTracker changeTracker, {{cls.Name}} src
             """ );
-        foreach( var pp in assocWithIdPropPairs ) {
+        foreach ( var pp in assocWithIdPropPairs ) {
             sb.Append( $$""", {{pp.AssocProp.TypeWithoutNullable}}{{(pp.AssocProp.TypeIsNullable ? "?" : "")}} {{pp.AssocProp.Name}}""" );
         }
         sb.AppendLine( $$""" 
@@ -598,8 +597,8 @@ public class IncrementalGenerator: IIncrementalGenerator {
                     // Copy mutable properties
             """ );
 
-        foreach ( var prop in cls.RelevantProperties.Where( _ => !_.IsGeneratedKey && !_.IsPrimaryKey && !_.IsVirtual && _.SetterAccessibility == Accessibility.Internal && !assocIdPropNames.Contains(_.Name) ) ) {
-            sb.AppendLine($$"""
+        foreach ( var prop in cls.RelevantProperties.Where( _ => !_.IsGeneratedKey && !_.IsPrimaryKey && !_.IsVirtual && _.SetterAccessibility == Accessibility.Internal && !assocIdPropNames.Contains( _.Name ) ) ) {
+            sb.AppendLine( $$"""
                         changeTracker = changeTracker.Set{{prop.Name}}( src.{{prop.Name}} );
                 """ );
         }
@@ -714,7 +713,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
         //}
 
         var dataProperties = cls.RelevantProperties.Where( _ => !_.IsTenantKey && !_.IsGeneratedKey && !_.IsVirtual && !_.IsIgnored )
-                .GroupBy( _ => GetPropTsCategory(_, assocIdInnerTypes));
+                .GroupBy( _ => GetPropTsCategory( _, assocIdInnerTypes ) );
 
         var updatableProperties = dataProperties.FirstOrDefault( g => g.Key == PropTsCategory.Updatable )?.ToList() ?? [];
         var insertableProperties = dataProperties.FirstOrDefault( g => g.Key == PropTsCategory.Insertable )?.ToList() ?? [];
@@ -809,7 +808,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
             $$"""   
                     {{p.Name}}: {
                         Name: "{{p.Name}}", 
-                        Type: "{{TsType(p.TypeWithoutNullable)}}",
+                        Type: "{{TsType( p.TypeWithoutNullable )}}",
                         PrimaryKeyOrder: {{p.PrimaryKeyOrder?.ToString() ?? "null"}},
                         IsGeneratedKey: {{(p.IsGeneratedKey ? "true" : "false")}},
                         IsNullable: {{(p.TypeIsNullable ? "true" : "false")}},
@@ -835,7 +834,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
                AssociationTypeInfos: {
            """ );
 
-        foreach(var assocProp in associationProperties ) {
+        foreach ( var assocProp in associationProperties ) {
             sb.AppendLine( $"        {assocProp.Name}: () => {assocProp.TypeWithoutNullable}TypeInfo," );
         }
 

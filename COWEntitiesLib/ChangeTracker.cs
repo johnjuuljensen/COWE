@@ -3,20 +3,18 @@ using System.Linq.Expressions;
 
 namespace COWEntities;
 
-public abstract class ChangeTracker<TObject, TChangeTracker> 
-    where TObject: class
-    where TChangeTracker: ChangeTracker<TObject, TChangeTracker> 
-{
-    public delegate TProperty DGetter<TProperty>(TObject obj);
-    public delegate void DSetter<TProperty>(TObject obj, TProperty val );
+public abstract class ChangeTracker<TObject, TChangeTracker>
+    where TObject : class
+    where TChangeTracker : ChangeTracker<TObject, TChangeTracker> {
+    public delegate TProperty DGetter<TProperty>( TObject obj );
+    public delegate void DSetter<TProperty>( TObject obj, TProperty val );
 
     public abstract TChangeTracker SetProperty<TProperty>( DGetter<TProperty> getter, DSetter<TProperty> setter, Expression<Func<TObject, TProperty>>? propExpr, TProperty val );
 }
 
 public abstract class CloningChangeTracker<TObject, TChangeTracker>: ChangeTracker<TObject, TChangeTracker>
     where TObject : class, IUpdatable<TObject>
-    where TChangeTracker : ChangeTracker<TObject, TChangeTracker>
-    {
+    where TChangeTracker : ChangeTracker<TObject, TChangeTracker> {
 
     public CloningChangeTracker( TObject original ) {
         Original = original;
