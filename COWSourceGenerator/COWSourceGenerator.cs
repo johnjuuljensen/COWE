@@ -284,7 +284,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
         // Generate the partial extension class
         sb.AppendLine( $$"""
-        public static class {{cls.Name}}Ext
+        public static partial class {{cls.Name}}Ext
         {
         {{extFilterExpr}}
         
