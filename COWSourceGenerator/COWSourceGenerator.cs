@@ -161,7 +161,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
                     var mutableProps = clsSymbol.GetMembers()
                         .OfType<IPropertySymbol>()
-                        .Where( _ => _.SetMethod != null )
+                        //.Where( _ => _.SetMethod != null )
                         .Select( p => {
                             var (propType, isNullableValueType) = p.Type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T
                                 ? (((INamedTypeSymbol)p.Type).TypeArguments[0], true)
@@ -360,7 +360,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
         var forTestParams = new StringBuilder();
         var forTestAssignments = new StringBuilder();
 
-        foreach ( var prop in cls.RelevantProperties ) {
+        foreach ( var prop in cls.RelevantProperties.Where( _ => _.SetterAccessibility != Accessibility.NotApplicable) ) {
             forTestParams.AppendLine( $$"""
                     {{prop.TypeWithoutNullable}}{{(prop.TypeIsNullable ? "?" : "")}} {{prop.Name}} = default{{(prop.TypeIsNullable ? "" : "!")}},
             """ );
@@ -400,7 +400,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
     static StringBuilder GeneratePropExtensions( GlobalConfig conf, COWClassConfig cls ) {
         var extensionMethods = new StringBuilder();
-        foreach ( var prop in cls.RelevantProperties.Where( _ => !_.IsVirtual ) ) {
+        foreach ( var prop in cls.RelevantProperties.Where( _ => !_.IsVirtual && _.SetterAccessibility != Accessibility.NotApplicable ) ) {
             WritePropHelpers( extensionMethods, cls, prop, $"{prop.Name} property" );
 
             if ( prop.SetterAccessibility != Accessibility.Private && prop.SetterAccessibility != Accessibility.Public ) {
@@ -473,7 +473,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
         }
 
         List<Property> defaultProps = new();
-        var privateProps = cls.RelevantProperties.Where( _ => !_.IsGeneratedKey && !_.IsTenantKey && !_.IsVirtual && !assocIdPropNames.Contains( _.Name ) );
+        var privateProps = cls.RelevantProperties.Where( _ => !_.IsGeneratedKey && !_.IsTenantKey && !_.IsVirtual && !assocIdPropNames.Contains( _.Name ) && _.SetterAccessibility != Accessibility.NotApplicable );
         foreach ( var prop in privateProps ) {
 
             if ( prop.SetterAccessibility == Accessibility.Private || !prop.TypeIsNullable ) {
