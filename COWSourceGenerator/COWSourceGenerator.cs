@@ -649,7 +649,8 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
 
         sb.AppendLine( $$"""
-            public static TChangeTracker CopyChangesAndResolveAssociations<TChangeTracker>(this TChangeTracker changeTracker, IAssociationLookup associationLookup, {{cls.Name}} src )
+            #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
+            public static async Task<TChangeTracker> CopyChangesAndResolveAssociations<TChangeTracker>(this TChangeTracker changeTracker, IAssociationLookup associationLookup, {{cls.Name}} src )
         """ );
         sb.AppendLine( $$""" 
                 where TChangeTracker: {{conf.ChangeTrackerType}}<{{cls.Name}}, TChangeTracker> =>
@@ -657,13 +658,14 @@ public class IncrementalGenerator: IIncrementalGenerator {
         """ );
         foreach ( var pp in assocWithIdPropPairs ) {
             sb.AppendLine( $$"""
-                        , {{(pp.IdProp.TypeIsNullable ? $"src.{pp.IdProp.Name} is null ? null : " : "")}}associationLookup.GetAssociation({{pp.AssocProp.TypeWithoutNullable}}Ext.GetFilterExpr(src.{{pp.IdProp.Name}}{{(pp.IdProp.TypeIsNullable ? $".Value" : "")}}))
+                        , {{(pp.IdProp.TypeIsNullable ? $"src.{pp.IdProp.Name} is null ? null : " : "")}}await associationLookup.GetAssociation({{pp.AssocProp.TypeWithoutNullable}}Ext.GetFilterExpr(src.{{pp.IdProp.Name}}{{(pp.IdProp.TypeIsNullable ? $".Value" : "")}}))
             """ );
         }
 
         sb.Append( $$""" 
-        );
-
+                );
+            #pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
+        
         """ );
 
         return sb;
@@ -678,17 +680,19 @@ public class IncrementalGenerator: IIncrementalGenerator {
         var assocWithIdPropPairs = cls.GetAssocWithIdPropPairs( assocProps );
 
         sb.AppendLine( $$"""
-                public static void ResolveAssociations( IAssociationLookup associationLookup, {{cls.Name}} target ) {
+                #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
+                public static async Task ResolveAssociations( IAssociationLookup associationLookup, {{cls.Name}} target ) {
             """ );
 
         foreach ( var pp in assocWithIdPropPairs ) {
             sb.AppendLine( $$"""
-                    target.{{pp.AssocProp.Name}} = {{(pp.IdProp.TypeIsNullable ? $"target.{pp.IdProp.Name} is null ? null : " : "")}}associationLookup.GetAssociation({{pp.AssocProp.TypeWithoutNullable}}Ext.GetFilterExpr(target.{{pp.IdProp.Name}}{{(pp.IdProp.TypeIsNullable ? $".Value" : "")}}));
+                    target.{{pp.AssocProp.Name}} = {{(pp.IdProp.TypeIsNullable ? $"target.{pp.IdProp.Name} is null ? null : " : "")}}await associationLookup.GetAssociation({{pp.AssocProp.TypeWithoutNullable}}Ext.GetFilterExpr(target.{{pp.IdProp.Name}}{{(pp.IdProp.TypeIsNullable ? $".Value" : "")}}));
             """ );
         }
 
         sb.AppendLine( $$"""
                 }
+                #pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
             """ );
 
         return sb;
@@ -698,7 +702,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
     static StringBuilder GenerateIUpdatableImpl( COWClassConfig cls ) {
         StringBuilder sb = new();
         sb.AppendLine( $$"""
-                public static TChangeTracker CopyChangesAndResolveAssociations<TChangeTracker>(TChangeTracker changeTracker, IAssociationLookup associationLookup, {{cls.Name}} src ) 
+                public static Task<TChangeTracker> CopyChangesAndResolveAssociations<TChangeTracker>(TChangeTracker changeTracker, IAssociationLookup associationLookup, {{cls.Name}} src ) 
                     where TChangeTracker : ChangeTracker<{{cls.Name}}, TChangeTracker>
                     =>
                     {{cls.Name}}Ext.CopyChangesAndResolveAssociations( changeTracker, associationLookup, src );

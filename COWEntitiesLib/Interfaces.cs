@@ -46,7 +46,7 @@ public interface IUpdatable<T> where T : class {
     // Note: Not public
     T CloneForUpdate();
 
-    static abstract TChangeTracker CopyChangesAndResolveAssociations<TChangeTracker>( TChangeTracker changeTracker, IAssociationLookup associationLookup, T src )
+    static abstract Task<TChangeTracker> CopyChangesAndResolveAssociations<TChangeTracker>( TChangeTracker changeTracker, IAssociationLookup associationLookup, T src )
         where TChangeTracker : ChangeTracker<T, TChangeTracker>;
 
     static abstract Task<TResult> ExecuteUpdateAsync<TResult>( IUpdateContext<TResult> updateContext );
@@ -54,7 +54,7 @@ public interface IUpdatable<T> where T : class {
 
 
 public interface IInsertable<T> {
-    static abstract void ResolveAssociations( IAssociationLookup associationLookup, T target );
+    static abstract Task ResolveAssociations( IAssociationLookup associationLookup, T target );
 }
 
 public interface INotInsertable { }
@@ -65,6 +65,6 @@ public class AssociationLookupException( string associationTypeName ): Exception
 }
 
 public interface IAssociationLookup {
-    public T GetAssociation<T>( Expression<Func<T, bool>> lookUpExpr ) where T : class;
+    public Task<T> GetAssociation<T>( Expression<Func<T, bool>> lookUpExpr ) where T : class;
 }
 
