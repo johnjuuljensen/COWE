@@ -13,6 +13,8 @@ public class HandlerStore<TExecutor> {
     }
 
     public delegate TResult DMapNoHandler<TResult>();
+
+    public delegate TResult DMapAssociationLookupError<TResult>( string associationTypeName );
 }
 
 public class UpdateHandlerStore: HandlerStore<UpdateHandlerStore.IUpdateExecutor> {

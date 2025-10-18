@@ -233,6 +233,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
         bool hasPublicProps = cls.RelevantProperties.Any( _ => _.SetterAccessibility == Accessibility.Public );
         bool isUpdatable = cls.RelevantProperties.Any( _ => _.SetterAccessibility != Accessibility.Private && _.SetterAccessibility != Accessibility.Public );
 
+        var insertableImpl = isInsertable ? GenerateIInsertableImpl( cls ) : new();
         var updatableImpl = isUpdatable ? GenerateIUpdatableImpl( cls ) : new();
 
         var tenantImpl = GenerateTenantSpecific( cls );
@@ -271,6 +272,8 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
             {{(isUpdatable ? $"{cls.Name} {conf.UpdatableInterface}<{cls.Name}>.{conf.UpdatableInterfaceCloneMethod}() => ({cls.Name})this.MemberwiseClone();" : "")}}
 
+        {{insertableImpl}}
+        
         {{updatableImpl}}
         
         {{filterExpr}}
@@ -666,6 +669,31 @@ public class IncrementalGenerator: IIncrementalGenerator {
         return sb;
 
     }
+
+    static StringBuilder GenerateIInsertableImpl( COWClassConfig cls ) {
+        StringBuilder sb = new();
+
+        var assocProps = cls.GetAssocProps().Where( _ => !_.IsTenantKey );
+
+        var assocWithIdPropPairs = cls.GetAssocWithIdPropPairs( assocProps );
+
+        sb.AppendLine( $$"""
+                public static void ResolveAssociations( IAssociationLookup associationLookup, {{cls.Name}} target ) {
+            """ );
+
+        foreach ( var pp in assocWithIdPropPairs ) {
+            sb.AppendLine( $$"""
+                    target.{{pp.AssocProp.Name}} = {{(pp.IdProp.TypeIsNullable ? $"target.{pp.IdProp.Name} is null ? null : " : "")}}associationLookup.GetAssociation({{pp.AssocProp.TypeWithoutNullable}}Ext.GetFilterExpr(target.{{pp.IdProp.Name}}{{(pp.IdProp.TypeIsNullable ? $".Value" : "")}}));
+            """ );
+        }
+
+        sb.AppendLine( $$"""
+                }
+            """ );
+
+        return sb;
+    }
+
 
     static StringBuilder GenerateIUpdatableImpl( COWClassConfig cls ) {
         StringBuilder sb = new();

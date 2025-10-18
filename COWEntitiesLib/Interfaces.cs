@@ -53,9 +53,16 @@ public interface IUpdatable<T> where T : class {
 }
 
 
-public interface IInsertable<T> { }
+public interface IInsertable<T> {
+    static abstract void ResolveAssociations( IAssociationLookup associationLookup, T target );
+}
 
 public interface INotInsertable { }
+
+
+public class AssociationLookupException( string associationTypeName ): Exception() {
+    public string AssociationTypeName { get; } = associationTypeName;
+}
 
 public interface IAssociationLookup {
     public T GetAssociation<T>( Expression<Func<T, bool>> lookUpExpr ) where T : class;
