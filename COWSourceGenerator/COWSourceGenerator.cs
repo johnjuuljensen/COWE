@@ -161,7 +161,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
                     var mutableProps = clsSymbol.GetMembers()
                         .OfType<IPropertySymbol>()
-                        //.Where( _ => _.SetMethod != null )
+                        .Where( _ => !_.IsStatic )
                         .Select( p => {
                             var (propType, isNullableValueType) = p.Type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T
                                 ? (((INamedTypeSymbol)p.Type).TypeArguments[0], true)
