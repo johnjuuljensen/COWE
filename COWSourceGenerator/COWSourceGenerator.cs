@@ -72,6 +72,7 @@ record Property(
     //string Type,
     string TypeWithoutNullable,
     bool TypeIsNullable,
+    bool TypeIsArray,
     bool IsVirtual,
     bool IsEnum,
     Accessibility SetterAccessibility,
@@ -82,7 +83,7 @@ record Property(
     ) {
     public bool IsPrimaryKey => PrimaryKeyOrder.HasValue;
 
-    public static readonly Property None = new( default!, default!, default, default, default, default, default, default, default, default );
+    public static readonly Property None = new( default!, default!, default, default, default, default, default, default, default, default, default );
 }
 
 record COWClassConfig(
@@ -172,6 +173,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
                                 //Type: propType.ToDisplayString( SymbolDisplayFormat.MinimallyQualifiedFormat ),
                                 TypeWithoutNullable: propType.WithNullableAnnotation( NullableAnnotation.NotAnnotated ).ToDisplayString( SymbolDisplayFormat.MinimallyQualifiedFormat ),
                                 TypeIsNullable: p.NullableAnnotation == NullableAnnotation.Annotated || isNullableValueType,
+                                TypeIsArray: propType.TypeKind == TypeKind.Array,
                                 IsVirtual: p.IsVirtual,
                                 IsEnum: propType.IsEnum() || propType.IsNullableEnumType(),
                                 SetterAccessibility: p.SetMethod?.DeclaredAccessibility ?? Accessibility.NotApplicable,
@@ -769,8 +771,10 @@ public class IncrementalGenerator: IIncrementalGenerator {
                 _ => $"{t}"
             };
 
+
         static string TsDefaultValue( Property p ) =>
             p.TypeIsNullable ? "null" :
+            p.TypeIsArray ? "[]" :
             p.TypeWithoutNullable.ToUpperInvariant() switch {
                 "INT" or "UINT" or "FLOAT" or "DOUBLE" or "LONG" or "ULONG" => "0",
                 "INSTANT" or "DATETIME" or "DATETIMEOFFSET" => "new Date()",
