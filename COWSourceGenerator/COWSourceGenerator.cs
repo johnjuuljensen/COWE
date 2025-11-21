@@ -184,6 +184,15 @@ public class IncrementalGenerator: IIncrementalGenerator {
                             );
                         } )
                         .OrderBy( _ => !_.IsTenantKey )
+                        // Primary keys first
+                        .ThenBy( _ => _.PrimaryKeyOrder ?? 99 )
+                        // Readonly last
+                        .ThenBy( _ => _.SetterAccessibility == Accessibility.NotApplicable)
+                        // Virtuals second last
+                        .ThenBy( _ => _.IsVirtual )
+                        // Then by accessibility
+                        .ThenBy( _ => _.SetterAccessibility )
+                        .ThenBy( _ => _.Name )
                         .ToImmutableArray();
 
 
