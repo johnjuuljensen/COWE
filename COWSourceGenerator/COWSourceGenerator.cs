@@ -332,14 +332,8 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
 #pragma warning disable RS1035
         if ( cls.TypescriptPath is not null ) {
-            Directory.CreateDirectory( Path.GetDirectoryName( cls.TypescriptPath ) );
-
-            using var fs = new FileStream( cls.TypescriptPath, FileMode.Create, FileAccess.Write );
-            using var s = new StreamWriter( fs, Encoding.UTF8 );
-            s.Write( GenerateTypescript( cls ) );
-
-            s.Close();
-            fs.Close();
+            var tsContent = GenerateTypescript( cls ).ToString();
+            WriteTypeScriptIfDifferent( cls.TypescriptPath, tsContent );
         }
 #pragma warning restore RS1035
     }
@@ -897,4 +891,25 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
         return sb;
     }
+
+#pragma warning disable RS1035
+    private static void WriteTypeScriptIfDifferent( string filePath, string content ) {
+        Directory.CreateDirectory( Path.GetDirectoryName( filePath ) );
+
+        static string NormalizeLineEndings( string text ) => text.Replace( "\r\n", "\n" ).Replace( "\r", "\n" );
+
+        var normalizedContent = NormalizeLineEndings( content );
+
+        if ( File.Exists( filePath ) ) {
+            var existingContent = File.ReadAllText( filePath, Encoding.UTF8 );
+            var normalizedExisting = NormalizeLineEndings( existingContent );
+
+            if ( normalizedContent == normalizedExisting ) {
+                return;
+            }
+        }
+
+        File.WriteAllText( filePath, content, Encoding.UTF8 );
+    }
+#pragma warning restore RS1035
 }
