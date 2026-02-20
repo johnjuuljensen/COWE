@@ -242,7 +242,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
         bool isInsertable = cls.Interfaces.Contains( $"IInsertable" );
         bool hasPublicProps = cls.RelevantProperties.Any( _ => _.SetterAccessibility == Accessibility.Public );
-        bool isUpdatable = cls.RelevantProperties.Any( _ => _.SetterAccessibility != Accessibility.Private && _.SetterAccessibility != Accessibility.Public );
+        bool isUpdatable = cls.RelevantProperties.Any( _ => _.SetterAccessibility is Accessibility.ProtectedOrInternal or Accessibility.Protected or Accessibility.Internal );
 
         var insertableImpl = isInsertable ? GenerateIInsertableImpl( cls ) : new();
         var updatableImpl = isUpdatable ? GenerateIUpdatableImpl( cls ) : new();
