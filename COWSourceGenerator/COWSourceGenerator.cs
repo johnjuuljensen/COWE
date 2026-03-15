@@ -415,10 +415,10 @@ public class IncrementalGenerator: IIncrementalGenerator {
                 var accessibility = prop.SetterAccessibility.ToDisplayStringForExt();
 
                 extensionMethods.AppendLine( $$"""
-                    {{accessibility}} static TChangeTracker Set{{prop.Name}}<TChangeTracker>(this TChangeTracker changeTracker, {{prop.TypeWithoutNullable}}{{(prop.TypeIsNullable ? "?" : "")}} val) 
+                    {{accessibility}} static TChangeTracker Set{{prop.Name}}<TChangeTracker>(this TChangeTracker changeTracker, {{prop.TypeWithoutNullable}}{{(prop.TypeIsNullable ? "?" : "")}} val)
                         where TChangeTracker: {{conf.ChangeTrackerType}}<{{cls.Name}}, TChangeTracker> =>
-                        changeTracker.{{conf.ChangeTrackerSetPropertyMethod}}({{prop.Name}}_Getter, {{prop.Name}}_Setter, {{prop.Name}}_Expr, val);
-                
+                        changeTracker.{{conf.ChangeTrackerSetPropertyMethod}}({{prop.Name}}_Getter, {{prop.Name}}_Setter, {{prop.Name}}_Expr, val, "{{prop.Name}}");
+
                 """ );
             }
         }
@@ -442,8 +442,8 @@ public class IncrementalGenerator: IIncrementalGenerator {
                             {{assocProp.SetterAccessibility.ToDisplayStringForExt()}} static TChangeTracker Set{{assocProp.Name}}<TChangeTracker>(this TChangeTracker changeTracker, {{assocProp.TypeWithoutNullable}}{{(idProp.TypeIsNullable ? "?" : "")}} val)
                                 where TChangeTracker: {{conf.ChangeTrackerType}}<{{cls.Name}}, TChangeTracker> =>
                                 changeTracker
-                                    .{{conf.ChangeTrackerSetPropertyMethod}}({{idProp.Name}}_Getter, {{idProp.Name}}_Setter, {{idProp.Name}}_Expr, val{{(idProp.TypeIsNullable ? "?" : "")}}.Id)
-                                    .{{conf.ChangeTrackerSetPropertyMethod}}({{assocProp.Name}}_Getter, {{assocProp.Name}}_Setter, null, val);
+                                    .{{conf.ChangeTrackerSetPropertyMethod}}({{idProp.Name}}_Getter, {{idProp.Name}}_Setter, {{idProp.Name}}_Expr, val{{(idProp.TypeIsNullable ? "?" : "")}}.Id, "{{idProp.Name}}")
+                                    .{{conf.ChangeTrackerSetPropertyMethod}}({{assocProp.Name}}_Getter, {{assocProp.Name}}_Setter, null, val, null);
 
                         """ );
                 }

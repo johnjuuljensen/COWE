@@ -9,7 +9,7 @@ public abstract class ChangeTracker<TObject, TChangeTracker>
     public delegate TProperty DGetter<TProperty>( TObject obj );
     public delegate void DSetter<TProperty>( TObject obj, TProperty val );
 
-    public abstract TChangeTracker SetProperty<TProperty>( DGetter<TProperty> getter, DSetter<TProperty> setter, Expression<Func<TObject, TProperty>>? propExpr, TProperty val );
+    public abstract TChangeTracker SetProperty<TProperty>( DGetter<TProperty> getter, DSetter<TProperty> setter, Expression<Func<TObject, TProperty>>? propExpr, TProperty val, string? propertyName = null );
 }
 
 public abstract class CloningChangeTracker<TObject, TChangeTracker>: ChangeTracker<TObject, TChangeTracker>
@@ -36,7 +36,7 @@ public abstract class CloningChangeTracker<TObject, TChangeTracker>: ChangeTrack
 }
 
 public class ObjectChangeTracker<TObject>( TObject original ): CloningChangeTracker<TObject, ObjectChangeTracker<TObject>>( original ) where TObject : class, IUpdatable<TObject> {
-    public override ObjectChangeTracker<TObject> SetProperty<TProperty>( DGetter<TProperty> getter, DSetter<TProperty> setter, Expression<Func<TObject, TProperty>>? propExpr, TProperty val ) {
+    public override ObjectChangeTracker<TObject> SetProperty<TProperty>( DGetter<TProperty> getter, DSetter<TProperty> setter, Expression<Func<TObject, TProperty>>? propExpr, TProperty val, string? propertyName = null ) {
         UpdateClone( getter, setter, val );
         return this;
     }
@@ -51,7 +51,7 @@ public class ModifyingChangeTracker<TObject>: ChangeTracker<TObject, ModifyingCh
 
     public TObject Original { get; }
 
-    public override ModifyingChangeTracker<TObject> SetProperty<TProperty>( DGetter<TProperty> getter, DSetter<TProperty> setter, Expression<Func<TObject, TProperty>>? propExpr, TProperty val ) {
+    public override ModifyingChangeTracker<TObject> SetProperty<TProperty>( DGetter<TProperty> getter, DSetter<TProperty> setter, Expression<Func<TObject, TProperty>>? propExpr, TProperty val, string? propertyName = null ) {
         setter( Original, val );
         return this;
     }
