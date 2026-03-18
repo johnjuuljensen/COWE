@@ -22,9 +22,6 @@ public sealed class GeneratedKeyAttribute: Attribute { }
 [AttributeUsage( AttributeTargets.Property )]
 public sealed class TenantKeyAttribute: Attribute { }
 
-[AttributeUsage( AttributeTargets.Class | AttributeTargets.Property )]
-public sealed class ChangeHistoryIgnoreAttribute: Attribute { }
-
 public interface IHasTenantKey<TTenantKey> {
     [Obsolete]
     void SetTenantKeyUnsafe( TTenantKey tenantKey );
