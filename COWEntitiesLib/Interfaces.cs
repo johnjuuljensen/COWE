@@ -40,7 +40,7 @@ public interface IHasPrimaryKeyFilter<T> {
 /// An entity whose updates apply only to the version they were read at, and move it on by one. Implemented by the
 /// COW generator for a class that declares it; the change tracker uses these members to guard the update.
 /// </summary>
-public interface IVersioned<T> where T : IVersioned<T> {
+public interface IVersioned<T> where T : class, IVersioned<T> {
     int Version { get; }
 
     static abstract Expression<Func<T, int>> VersionExpr { get; }
@@ -48,6 +48,14 @@ public interface IVersioned<T> where T : IVersioned<T> {
     /// <summary>Sets the version on an object being updated, to the value the update writes.</summary>
     [Obsolete( "Not obsolete, but only for the change tracker" )]
     static abstract void SetVersionUnsafe( T obj, int version );
+
+    /// <summary>
+    /// Called by the change tracker once per update, just before it is written, with <paramref name="updated"/> as it
+    /// stands and the <paramref name="version"/> the update writes. An entity whose content depends on that version
+    /// sets it on <paramref name="changeTracker"/>. Does nothing by default.
+    /// </summary>
+    static virtual TChangeTracker BeforeWrite<TChangeTracker>( TChangeTracker changeTracker, T original, T updated, int version )
+        where TChangeTracker : ChangeTracker<T, TChangeTracker> => changeTracker;
 }
 
 
