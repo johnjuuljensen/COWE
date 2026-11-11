@@ -426,6 +426,9 @@ public class IncrementalGenerator: IIncrementalGenerator {
                     void IHasOptionalTenantKey<{{tenantProp.TypeWithoutNullable}}{{(tenantProp.TypeIsNullable ? "?" : "")}}>.SetOptionalTenantKeyUnsafe( {{tenantProp.TypeWithoutNullable}}{{(tenantProp.TypeIsNullable ? "?" : "")}} tenantKey ) {
                         this.{{tenantProp.Name}} = tenantKey;
                     }
+
+                    /// <summary>No tenant owns the row: it is shared by every tenant. Serialised in place of the tenant key, which never is.</summary>
+                    public bool IsGlobal => this.{{tenantProp.Name}} == null;
                 """ );
             } else {
                 sb.AppendLine( $$"""
@@ -846,6 +849,10 @@ public class IncrementalGenerator: IIncrementalGenerator {
         var updatableProperties = dataProperties.FirstOrDefault( g => g.Key == PropTsCategory.Updatable )?.ToList() ?? [];
         var insertableProperties = dataProperties.FirstOrDefault( g => g.Key == PropTsCategory.Insertable )?.ToList() ?? [];
         var readonlyProperties = dataProperties.FirstOrDefault( g => g.Key == PropTsCategory.ReadOnly )?.ToList() ?? [];
+        // An optional tenant key gives the entity a generated IsGlobal (GenerateTenantSpecific), which this generator can't see.
+        if ( cls.GetTenantKeyProp() is { TypeIsNullable: true } ) {
+            readonlyProperties.Add( new Property( "IsGlobal", "bool", false, false, false, false, Accessibility.NotApplicable, null, false, false, false ) );
+        }
 
         HashSet<string> imports = new() { cls.Name };
         foreach ( var p in associationProperties ) {
