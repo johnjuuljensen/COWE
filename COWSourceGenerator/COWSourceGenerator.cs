@@ -81,7 +81,8 @@ record Property(
     bool IsTenantKey,
     bool IsIgnored,
     string? EnumDefaultMember = null,
-    string? TsTypeOverride = null
+    string? TsTypeOverride = null,
+    string? JsonName = null
     ) {
     public bool IsPrimaryKey => PrimaryKeyOrder.HasValue;
 
@@ -93,8 +94,70 @@ record COWClassConfig(
     string Name,
     EquatableArray<Property> RelevantProperties,
     EquatableArray<string> Interfaces,
-    string? TypescriptPath
+    string? TypescriptPath,
+    EquatableArray<TsShape> TsShapes
     );
+
+record TsShapeMember( string Name, string TsType, bool IsOptional );
+
+/// <summary>A C# type written to TypeScript as an interface, because a column's JSON holds it.</summary>
+record TsShape( string Name, EquatableArray<TsShapeMember> Members );
+
+/// <summary>
+/// A column stored as JSON (e.g. a JsonElement) is named on the wire by [JsonPropertyName], and a hand-written,
+/// [JsonIgnore]d property of that name gives it its C# type. That C# type is what TypeScript gets: the property's
+/// TS type, plus an interface for each class or record it is built from. C# stays the one place the shape is defined.
+/// </summary>
+static class TsShapes {
+    public static string? JsonNameOf( IPropertySymbol p ) =>
+        p.GetAttributes().FirstOrDefault( a => a.AttributeClass?.Name == "JsonPropertyNameAttribute" )?.ConstructorArguments.FirstOrDefault().Value as string;
+
+    public static string? TypedPartnerTsType( IPropertySymbol p, INamedTypeSymbol cls, List<TsShape> shapes ) =>
+        JsonNameOf( p ) is { } jsonName
+        && cls.GetMembers( jsonName ).OfType<IPropertySymbol>().FirstOrDefault( o => !o.IsStatic && !SymbolEqualityComparer.Default.Equals( o, p ) ) is { } partner
+            ? TsTypeFor( partner.Type, shapes )
+            : null;
+
+    static string TsTypeFor( ITypeSymbol t, List<TsShape> shapes ) {
+        if ( t is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable )
+            t = nullable.TypeArguments[0];
+
+        switch ( t.SpecialType ) {
+            case SpecialType.System_String: return "string";
+            case SpecialType.System_Boolean: return "boolean";
+            case SpecialType.System_Int16 or SpecialType.System_Int32 or SpecialType.System_Int64
+                or SpecialType.System_UInt16 or SpecialType.System_UInt32 or SpecialType.System_UInt64
+                or SpecialType.System_Single or SpecialType.System_Double or SpecialType.System_Decimal: return "number";
+            case SpecialType.System_DateTime: return "Date";
+        }
+        if ( t is IArrayTypeSymbol array ) return TsTypeFor( array.ElementType, shapes ) + "[]";
+        if ( t is INamedTypeSymbol { IsGenericType: true, TypeArguments.Length: 1 } generic
+            && generic.AllInterfaces.Concat( [generic] ).Any( i => i.OriginalDefinition.SpecialType == SpecialType.System_Collections_Generic_IEnumerable_T ) )
+            return TsTypeFor( generic.TypeArguments[0], shapes ) + "[]";
+        if ( t.TypeKind == TypeKind.Enum ) return t.Name;
+
+        var ns = t.ContainingNamespace?.ToDisplayString() ?? "";
+        if ( ns == "System" || ns.StartsWith( "System." ) ) return t.Name switch {
+            "DateTimeOffset" => "Date",
+            "Guid" => "Guid",
+            _ => "unknown"
+        };
+
+        if ( t.TypeKind is TypeKind.Class or TypeKind.Struct && !shapes.Any( s => s.Name == t.Name ) ) {
+            shapes.Add( new TsShape( t.Name, ImmutableArray<TsShapeMember>.Empty ) );
+            var members = t.GetMembers().OfType<IPropertySymbol>()
+                .Where( m => !m.IsStatic && m.DeclaredAccessibility == Accessibility.Public && m.GetMethod is not null
+                    && !m.GetAttributes().Any( a => a.AttributeClass?.Name == "JsonIgnoreAttribute" ) && m.Name != "EqualityContract" )
+                .Select( m => new TsShapeMember(
+                    JsonNameOf( m ) ?? m.Name,
+                    TsTypeFor( m.Type, shapes ),
+                    m.NullableAnnotation == NullableAnnotation.Annotated || m.Type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T ) )
+                .ToImmutableArray();
+            shapes[shapes.FindIndex( s => s.Name == t.Name )] = new TsShape( t.Name, members );
+        }
+        return t.Name;
+    }
+}
 
 static class COWClassConfigExt {
 
@@ -168,6 +231,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
                 IsCOWObjectCandidate,
                 ( context, _ ) => {
                     var clsSymbol = (INamedTypeSymbol)context.TargetSymbol;
+                    var tsShapes = new List<TsShape>();
 
                     var mutableProps = clsSymbol.GetMembers()
                         .OfType<IPropertySymbol>()
@@ -191,7 +255,8 @@ public class IncrementalGenerator: IIncrementalGenerator {
                                 IsTenantKey: p.GetAttributes().Any( a => a.AttributeClass?.Name == "TenantKeyAttribute" ),
                                 IsIgnored: p.GetAttributes().Any( a => a.AttributeClass?.Name == "JsonIgnoreAttribute" ),
                                 EnumDefaultMember: EnumDefaultMember( propType ),
-                                TsTypeOverride: p.GetAttributes().FirstOrDefault( a => a.AttributeClass?.Name == "TsTypeAttribute" )?.ConstructorArguments.FirstOrDefault().Value as string
+                                TsTypeOverride: TsShapes.TypedPartnerTsType( p, clsSymbol, tsShapes ),
+                                JsonName: TsShapes.JsonNameOf( p )
                             );
                         } )
                         .OrderBy( _ => !_.IsTenantKey )
@@ -219,7 +284,8 @@ public class IncrementalGenerator: IIncrementalGenerator {
                                 .FirstOrDefault()
                                 ?.SourceTree?.FilePath is string sourceFilePath
                             ? Path.Combine( Path.GetDirectoryName( sourceFilePath ), "typescript", $"{clsSymbol.Name}.ts" )
-                            : ""
+                            : "",
+                        TsShapes: tsShapes.ToImmutableArray()
                         );
                 } );
 
@@ -760,7 +826,9 @@ public class IncrementalGenerator: IIncrementalGenerator {
         //    sb.AppendLine($"// {kv.Key}: {kv.Value}");
         //}
 
+        // TypeScript sees the JSON name: a property with [JsonPropertyName] is named as it travels on the wire.
         var dataProperties = cls.RelevantProperties.Where( _ => !_.IsTenantKey && !_.IsGeneratedKey && !_.IsVirtual && !_.IsIgnored )
+                .Select( _ => _.JsonName is { } jsonName ? _ with { Name = jsonName } : _ )
                 .GroupBy( _ => GetPropTsCategory( _, assocIdInnerTypes ) );
 
         var updatableProperties = dataProperties.FirstOrDefault( g => g.Key == PropTsCategory.Updatable )?.ToList() ?? [];
@@ -807,6 +875,16 @@ public class IncrementalGenerator: IIncrementalGenerator {
                 _ when p.EnumDefaultMember is not null => $"'{p.EnumDefaultMember}'",
                 _ => "''"
             };
+
+        // A null member is left out of the JSON (WhenWritingNull), so a nullable C# member is an optional TS member.
+        foreach ( var shape in cls.TsShapes ) {
+            sb.AppendLine( $$"""
+
+                export interface {{shape.Name}} {
+                {{String.Join( "\n", shape.Members.Select( m => $"   readonly {m.Name}{(m.IsOptional ? "?" : "")}: {m.TsType};" ) )}}
+                }
+                """ );
+        }
 
         sb.AppendLine( $$"""
 
