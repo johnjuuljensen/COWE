@@ -79,7 +79,8 @@ record Property(
     int? PrimaryKeyOrder,
     bool IsGeneratedKey,
     bool IsTenantKey,
-    bool IsIgnored
+    bool IsIgnored,
+    string? EnumDefaultMember = null
     ) {
     public bool IsPrimaryKey => PrimaryKeyOrder.HasValue;
 
@@ -149,6 +150,13 @@ public class IncrementalGenerator: IIncrementalGenerator {
         return 0;
     }
 
+    // TypeScript's default for an enum is C#'s: default(T), the member valued 0, else the first member.
+    static string? EnumDefaultMember( ITypeSymbol t ) {
+        if ( !t.IsEnum() ) return null;
+        var members = t.GetMembers().OfType<IFieldSymbol>().Where( f => f.HasConstantValue ).ToList();
+        return (members.FirstOrDefault( f => Convert.ToInt64( f.ConstantValue ) == 0 ) ?? members.FirstOrDefault())?.Name;
+    }
+
     public void Initialize( IncrementalGeneratorInitializationContext initContext ) {
         var configProv = initContext.AnalyzerConfigOptionsProvider.Select( GlobalConfig.Load );
 
@@ -180,7 +188,8 @@ public class IncrementalGenerator: IIncrementalGenerator {
                                 PrimaryKeyOrder: GetPrimaryKeyOrder( p ),
                                 IsGeneratedKey: p.GetAttributes().Any( a => a.AttributeClass?.Name == "GeneratedKeyAttribute" ),
                                 IsTenantKey: p.GetAttributes().Any( a => a.AttributeClass?.Name == "TenantKeyAttribute" ),
-                                IsIgnored: p.GetAttributes().Any( a => a.AttributeClass?.Name == "JsonIgnoreAttribute" )
+                                IsIgnored: p.GetAttributes().Any( a => a.AttributeClass?.Name == "JsonIgnoreAttribute" ),
+                                EnumDefaultMember: EnumDefaultMember( propType )
                             );
                         } )
                         .OrderBy( _ => !_.IsTenantKey )
@@ -764,10 +773,16 @@ public class IncrementalGenerator: IIncrementalGenerator {
                 imports.Add( p.TypeWithoutNullable );
             }
         }
+        // An Id<X> with no association property still names X.
+        foreach ( var t in dataProperties.SelectMany( g => g ).Select( _ => _.TypeWithoutNullable ) ) {
+            if ( t.StartsWith( "Id<" ) && t.EndsWith( ">" ) && imports.Add( t.Substring( 3, t.Length - 4 ) ) ) {
+                sb.AppendLine( $$"""import type { {{t.Substring( 3, t.Length - 4 )}} } from './{{t.Substring( 3, t.Length - 4 )}}.ts'""" );
+            }
+        }
 
         static string TsType( in string t ) =>
             t.ToUpperInvariant() switch {
-                "INT" or "UINT" or "FLOAT" or "DOUBLE" or "DECIMAL" or "LONG" or "ULONG" => "number",
+                "SHORT" or "USHORT" or "INT" or "UINT" or "FLOAT" or "DOUBLE" or "DECIMAL" or "LONG" or "ULONG" => "number",
                 "INSTANT" or "DATETIME" or "DATETIMEOFFSET" => "Date",
                 "BOOL" => "boolean",
                 "STRING" or "TIMEONLY" or "TIMESPAN" => "string",
@@ -779,11 +794,12 @@ public class IncrementalGenerator: IIncrementalGenerator {
             p.TypeIsNullable ? "null" :
             p.TypeIsArray ? "[]" :
             p.TypeWithoutNullable.ToUpperInvariant() switch {
-                "INT" or "UINT" or "FLOAT" or "DOUBLE" or "DECIMAL" or "LONG" or "ULONG" => "0",
+                "SHORT" or "USHORT" or "INT" or "UINT" or "FLOAT" or "DOUBLE" or "DECIMAL" or "LONG" or "ULONG" => "0",
                 "INSTANT" or "DATETIME" or "DATETIMEOFFSET" => "new Date()",
                 "BOOL" => "false",
                 "TIMEONLY" or "TIMESPAN" => "'08:00'",
                 _ when p.TypeWithoutNullable.StartsWith( "Id<" ) => $"0 as {p.TypeWithoutNullable}",
+                _ when p.EnumDefaultMember is not null => $"'{p.EnumDefaultMember}'",
                 _ => "''"
             };
 
