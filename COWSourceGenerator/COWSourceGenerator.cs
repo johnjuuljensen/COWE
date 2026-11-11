@@ -658,6 +658,15 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
         }
 
+        if ( cls.Interfaces.Contains( "IVersioned" ) ) {
+            hasPrimary.AppendLine( $$"""
+                    static Expression<Func<{{cls.Name}}, int>> IVersioned<{{cls.Name}}>.VersionExpr => {{cls.Name}}Ext.Version_Expr;
+
+                    static void IVersioned<{{cls.Name}}>.SetVersionUnsafe( {{cls.Name}} obj, int version ) => obj.Version = version;
+
+                """ );
+        }
+
         return (hasPrimary, ext);
     }
 
@@ -826,10 +835,13 @@ public class IncrementalGenerator: IIncrementalGenerator {
         //    sb.AppendLine($"// {kv.Key}: {kv.Value}");
         //}
 
+        bool isVersioned = cls.Interfaces.Contains( "IVersioned" );
+
         // TypeScript sees the JSON name: a property with [JsonPropertyName] is named as it travels on the wire.
         var dataProperties = cls.RelevantProperties.Where( _ => !_.IsTenantKey && !_.IsGeneratedKey && !_.IsVirtual && !_.IsIgnored )
                 .Select( _ => _.JsonName is { } jsonName ? _ with { Name = jsonName } : _ )
-                .GroupBy( _ => GetPropTsCategory( _, assocIdInnerTypes ) );
+                // A versioned entity's Version travels with an update (as If-Match), so TypeScript requires it there.
+                .GroupBy( _ => isVersioned && _.Name == "Version" ? PropTsCategory.Updatable : GetPropTsCategory( _, assocIdInnerTypes ) );
 
         var updatableProperties = dataProperties.FirstOrDefault( g => g.Key == PropTsCategory.Updatable )?.ToList() ?? [];
         var insertableProperties = dataProperties.FirstOrDefault( g => g.Key == PropTsCategory.Insertable )?.ToList() ?? [];
@@ -960,10 +972,11 @@ public class IncrementalGenerator: IIncrementalGenerator {
 
             """;
 
+        string isVersionedLine = isVersioned ? "\n    IsVersioned: true," : "";
         sb.AppendLine( $$"""
 
            export const {{cls.Name}}TypeInfo: IEntityInfo<{{cls.Name}}, {{cls.Name}}Properties, {{cls.Name}}UpdatableProperties, {{cls.Name}}Associations> = {
-               Name: "{{cls.Name}}",
+               Name: "{{cls.Name}}",{{isVersionedLine}}
                EntityType: {} as {{cls.Name}},
                PropertiesType: {} as {{cls.Name}}Properties,
                UpdatablePropertiesType: {} as {{cls.Name}}UpdatableProperties,
