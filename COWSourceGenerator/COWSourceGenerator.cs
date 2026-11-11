@@ -80,7 +80,8 @@ record Property(
     bool IsGeneratedKey,
     bool IsTenantKey,
     bool IsIgnored,
-    string? EnumDefaultMember = null
+    string? EnumDefaultMember = null,
+    string? TsTypeOverride = null
     ) {
     public bool IsPrimaryKey => PrimaryKeyOrder.HasValue;
 
@@ -189,7 +190,8 @@ public class IncrementalGenerator: IIncrementalGenerator {
                                 IsGeneratedKey: p.GetAttributes().Any( a => a.AttributeClass?.Name == "GeneratedKeyAttribute" ),
                                 IsTenantKey: p.GetAttributes().Any( a => a.AttributeClass?.Name == "TenantKeyAttribute" ),
                                 IsIgnored: p.GetAttributes().Any( a => a.AttributeClass?.Name == "JsonIgnoreAttribute" ),
-                                EnumDefaultMember: EnumDefaultMember( propType )
+                                EnumDefaultMember: EnumDefaultMember( propType ),
+                                TsTypeOverride: p.GetAttributes().FirstOrDefault( a => a.AttributeClass?.Name == "TsTypeAttribute" )?.ConstructorArguments.FirstOrDefault().Value as string
                             );
                         } )
                         .OrderBy( _ => !_.IsTenantKey )
@@ -790,8 +792,11 @@ public class IncrementalGenerator: IIncrementalGenerator {
             };
 
 
+        static string TsTypeOf( Property p ) => p.TsTypeOverride ?? TsType( p.TypeWithoutNullable );
+
         static string TsDefaultValue( Property p ) =>
             p.TypeIsNullable ? "null" :
+            p.TsTypeOverride?.EndsWith( "[]" ) == true ? "[]" :
             p.TypeIsArray ? "[]" :
             p.TypeWithoutNullable.ToUpperInvariant() switch {
                 "SHORT" or "USHORT" or "INT" or "UINT" or "FLOAT" or "DOUBLE" or "DECIMAL" or "LONG" or "ULONG" => "0",
@@ -808,7 +813,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
             export interface {{cls.Name}}UpdatableProperties {
             """ );
         foreach ( var p in updatableProperties ) {
-            sb.AppendLine( $"   readonly {p.Name}: {TsType( p.TypeWithoutNullable )}{(p.TypeIsNullable ? " | null" : "")};" );
+            sb.AppendLine( $"   readonly {p.Name}: {TsTypeOf( p )}{(p.TypeIsNullable ? " | null" : "")};" );
         }
         sb.AppendLine( $$"""
             }
@@ -816,7 +821,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
             export interface {{cls.Name}}Properties extends {{cls.Name}}UpdatableProperties {
             """ );
         foreach ( var p in insertableProperties ) {
-            sb.AppendLine( $"   readonly {p.Name}: {TsType( p.TypeWithoutNullable )}{(p.TypeIsNullable ? " | null" : "")};" );
+            sb.AppendLine( $"   readonly {p.Name}: {TsTypeOf( p )}{(p.TypeIsNullable ? " | null" : "")};" );
         }
         sb.AppendLine( $$"""
             }
@@ -834,11 +839,11 @@ public class IncrementalGenerator: IIncrementalGenerator {
             """ );
 
         foreach ( var p in cls.RelevantProperties.Where( _ => _.IsGeneratedKey ) ) {
-            sb.AppendLine( $"   readonly {p.Name}: {TsType( p.TypeWithoutNullable )};" );
+            sb.AppendLine( $"   readonly {p.Name}: {TsTypeOf( p )};" );
         }
 
         foreach ( var p in readonlyProperties ) {
-            sb.AppendLine( $"   readonly {p.Name}: {TsType( p.TypeWithoutNullable )}{(p.TypeIsNullable ? " | null" : "")};" );
+            sb.AppendLine( $"   readonly {p.Name}: {TsTypeOf( p )}{(p.TypeIsNullable ? " | null" : "")};" );
         }
 
         sb.AppendLine( $$"""
@@ -863,7 +868,7 @@ public class IncrementalGenerator: IIncrementalGenerator {
             $$"""   
                     {{p.Name}}: {
                         Name: "{{p.Name}}", 
-                        Type: "{{TsType( p.TypeWithoutNullable )}}",
+                        Type: "{{TsTypeOf( p )}}",
                         PrimaryKeyOrder: {{p.PrimaryKeyOrder?.ToString() ?? "null"}},
                         IsGeneratedKey: {{(p.IsGeneratedKey ? "true" : "false")}},
                         IsNullable: {{(p.TypeIsNullable ? "true" : "false")}},
